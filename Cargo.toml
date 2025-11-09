@@ -1,7 +1,7 @@
 [package]
 name = "cpudetect"
-version = "0.1.0"
-edition = "2021"
+version = "0.0.1"
+edition = "2024"
 
 [lib]
 name = "cpudetect"
@@ -13,6 +13,7 @@ name = "lscpu"
 path = "bin/lscpu.rs"
 
 [dependencies]
-bitflags = "2.4"
+bitflags = "2.10.0"
+colored = "3.0.0"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]

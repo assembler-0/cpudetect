@@ -25,7 +25,7 @@ impl CpuTopology {
     pub fn detect() -> Self {
         let mut logical_processors = 1;
         let mut physical_cores = 1;
-        let mut threads_per_core = 1;
+        let threads_per_core ;
         let mut has_hyperthreading = false;
         let mut hybrid = false;
 
