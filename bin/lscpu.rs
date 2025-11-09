@@ -32,10 +32,10 @@ fn print_gradient_header(title: &str, icon: &str, color: Color) {
 
 fn print_header() {
     println!("\n{}", "╔══════════════════════════════════════════════════════════════════════╗".bright_cyan().bold());
-    println!("{}", "║                                                                       ║".bright_cyan().bold());
-    println!("{}", "║              🚀  CPU FEATURE DETECTION SUITE  🚀                     ║".bright_cyan().bold());
-    println!("{}", "║                     Modern System Analysis                            ║".bright_cyan().bold());
-    println!("{}", "║                                                                       ║".bright_cyan().bold());
+    println!("{}", "║                                                                      ║".bright_cyan().bold());
+    println!("{}", "║                CPUDETECT - lscpu rust re-implementation              ║".bright_cyan().bold());
+    println!("{}", "║                        Modern System Analysis                        ║".bright_cyan().bold());
+    println!("{}", "║                                                                      ║".bright_cyan().bold());
     println!("{}", "╚══════════════════════════════════════════════════════════════════════╝".bright_cyan().bold());
 }
 
@@ -237,31 +237,70 @@ fn print_features(features: &CpuFeatures) {
     ];
 
     for (category, name, icon, color) in &categories {
-        let category_features = features.features_by_category(*category);
-        if !category_features.is_empty() {
+        let all_category_features: Vec<&features::Feature> = features.all_features
+            .iter()
+            .filter(|f| f.category == *category)
+            .collect();
+        
+        if !all_category_features.is_empty() {
+            let supported_count = all_category_features.iter().filter(|f| f.supported).count();
+            let total_count = all_category_features.len();
+            
             println!("\n  {} {} {} {}", 
                 icon,
                 name.color(*color).bold(),
-                format!("({})", category_features.len()).truecolor(100, 100, 100),
+                format!("({}/{})", supported_count, total_count).truecolor(100, 100, 100),
                 "─".repeat(50).truecolor(60, 60, 60));
 
+            // Print supported features
             let mut count = 0;
-            for feature in category_features {
+            for feature in all_category_features.iter().filter(|f| f.supported) {
                 if count % 4 == 0 {
                     print!("\n    ");
                 }
                 print!("{} {:<18}", "✓".bright_green(), feature.name.bright_white());
                 count += 1;
             }
-            println!();
+            if count > 0 {
+                println!();
+            }
+
+            // Print missing features
+            let missing: Vec<&&features::Feature> = all_category_features.iter()
+                .filter(|f| !f.supported)
+                .collect();
+            
+            if !missing.is_empty() {
+                println!("\n    {} Missing features:", "⚠".bright_yellow());
+                let mut count = 0;
+                for feature in missing {
+                    if count % 4 == 0 {
+                        print!("\n    ");
+                    }
+                    print!("{} {:<18}", "✗".truecolor(150, 150, 150), feature.name.truecolor(120, 120, 120));
+                    count += 1;
+                }
+                println!();
+            }
         }
     }
 
     let total_features = features.all_supported().len();
+    let total_checked = features.all_features.len();
+    let missing_features = total_checked - total_features;
+    
     println!("\n\n  {} {} {}",
         "═".repeat(3).bright_green().bold(),
-        "Total Features Detected:".bright_white().bold(),
-        total_features.to_string().bright_yellow().bold());
+        "Features Supported:".bright_white().bold(),
+        format!("{}/{}", total_features, total_checked).bright_yellow().bold());
+    
+    if missing_features > 0 {
+        println!("  {} {} {}",
+            "═".repeat(3).truecolor(150, 150, 150),
+            "Features Not Supported:".truecolor(150, 150, 150),
+            missing_features.to_string().truecolor(120, 120, 120));
+    }
+    
     println!("\n{}", "═".repeat(70).truecolor(60, 60, 60));
     println!();
 }

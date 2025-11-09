@@ -96,6 +96,41 @@ impl CpuFeatures {
             detect_leaf7_sub2(&mut all_features);
         }
 
+        // Leaf 7 subleaf 3
+        if is_leaf_supported(7) {
+            detect_leaf7_sub3(&mut all_features);
+        }
+
+        // Leaf 6: Thermal and Power Management
+        if is_leaf_supported(6) {
+            detect_thermal_power(&mut all_features);
+        }
+
+        // Leaf 0xA: Performance Monitoring
+        if is_leaf_supported(0xA) {
+            detect_perfmon(&mut all_features);
+        }
+
+        // Leaf 0x10: Resource Director Technology
+        if is_leaf_supported(0x10) {
+            detect_rdt(&mut all_features);
+        }
+
+        // Leaf 0x12: SGX Extended
+        if is_leaf_supported(0x12) {
+            detect_sgx_extended(&mut all_features);
+        }
+
+        // Leaf 0x18: Deterministic Address Translation
+        if is_leaf_supported(0x18) {
+            detect_address_translation(&mut all_features);
+        }
+
+        // Leaf 0x24: AVX10
+        if is_leaf_supported(0x24) {
+            detect_avx10(&mut all_features);
+        }
+
         // Extended leaves: Additional AMD/Intel features
         if is_leaf_supported(0x8000_0001) {
             detect_extended_features(&mut all_features);
@@ -104,6 +139,26 @@ impl CpuFeatures {
         // AMD Extended Features
         if is_leaf_supported(0x8000_0008) {
             detect_amd_extended(&mut all_features);
+        }
+
+        // AMD SVM Extended
+        if is_leaf_supported(0x8000_000A) {
+            detect_amd_svm(&mut all_features);
+        }
+
+        // AMD Performance Optimization
+        if is_leaf_supported(0x8000_001A) {
+            detect_amd_perf_optimization(&mut all_features);
+        }
+
+        // AMD Memory Encryption
+        if is_leaf_supported(0x8000_001F) {
+            detect_amd_memory_encryption(&mut all_features);
+        }
+
+        // AMD Extended Features 2
+        if is_leaf_supported(0x8000_0021) {
+            detect_amd_extended_features2(&mut all_features);
         }
 
         // Intel specific leaves
@@ -1012,6 +1067,24 @@ fn detect_leaf7_sub1(features: &mut Vec<Feature>) {
             FeatureCategory::System,
             "User-mode MSR access",
         ),
+        (
+            17,
+            "CET_SSS",
+            FeatureCategory::Security,
+            "Shadow Stack Select",
+        ),
+        (
+            18,
+            "AVX10",
+            FeatureCategory::Simd,
+            "AVX10 Converged Vector ISA",
+        ),
+        (
+            19,
+            "APX_F",
+            FeatureCategory::Performance,
+            "Advanced Performance Extensions",
+        ),
     ];
 
     for (bit, name, category, desc) in edx_features.iter() {
@@ -1539,6 +1612,869 @@ fn detect_intel_specific(features: &mut Vec<Feature>) {
             category: FeatureCategory::Simd,
             description: "AMX TMUL Information",
             supported: true,
+        });
+    }
+}
+
+fn detect_leaf7_sub3(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(7) {
+        return;
+    }
+
+    let result = cpuid(7, 3);
+
+    let edx_features = [
+        (
+            0,
+            "AVX10_128",
+            FeatureCategory::Simd,
+            "AVX10 128-bit support",
+        ),
+        (
+            1,
+            "AVX10_256",
+            FeatureCategory::Simd,
+            "AVX10 256-bit support",
+        ),
+        (
+            2,
+            "AVX10_512",
+            FeatureCategory::Simd,
+            "AVX10 512-bit support",
+        ),
+    ];
+
+    for (bit, name, category, desc) in edx_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.edx & (1 << bit)) != 0,
+        });
+    }
+}
+
+fn detect_avx10(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(0x24) {
+        return;
+    }
+
+    let result = cpuid(0x24, 0);
+
+    let version = result.ebx & 0xFF;
+    if version > 0 {
+        features.push(Feature {
+            name: format!("AVX10_V{}", version),
+            category: FeatureCategory::Simd,
+            description: "AVX10 Version",
+            supported: true,
+        });
+    }
+
+    if result.ebx & (1 << 16) != 0 {
+        features.push(Feature {
+            name: "AVX10_128".to_string(),
+            category: FeatureCategory::Simd,
+            description: "AVX10 128-bit vector support",
+            supported: true,
+        });
+    }
+    if result.ebx & (1 << 17) != 0 {
+        features.push(Feature {
+            name: "AVX10_256".to_string(),
+            category: FeatureCategory::Simd,
+            description: "AVX10 256-bit vector support",
+            supported: true,
+        });
+    }
+    if result.ebx & (1 << 18) != 0 {
+        features.push(Feature {
+            name: "AVX10_512".to_string(),
+            category: FeatureCategory::Simd,
+            description: "AVX10 512-bit vector support",
+            supported: true,
+        });
+    }
+}
+
+fn detect_thermal_power(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(6) {
+        return;
+    }
+
+    let result = cpuid(6, 0);
+
+    let eax_features = [
+        (0, "DTHERM", FeatureCategory::Power, "Digital thermal sensor"),
+        (
+            1,
+            "TURBO_BOOST",
+            FeatureCategory::Power,
+            "Intel Turbo Boost",
+        ),
+        (
+            2,
+            "ARAT",
+            FeatureCategory::Power,
+            "APIC-Timer-always-running",
+        ),
+        (4, "PLN", FeatureCategory::Power, "Power limit notification"),
+        (
+            5,
+            "ECMD",
+            FeatureCategory::Power,
+            "Clock modulation duty cycle",
+        ),
+        (6, "PTM", FeatureCategory::Power, "Package thermal management"),
+        (7, "HWP", FeatureCategory::Power, "Hardware P-states (HWP)"),
+        (
+            8,
+            "HWP_NOTIFICATION",
+            FeatureCategory::Power,
+            "HWP notification",
+        ),
+        (
+            9,
+            "HWP_ACTIVITY_WINDOW",
+            FeatureCategory::Power,
+            "HWP activity window",
+        ),
+        (
+            10,
+            "HWP_ENERGY_PERF",
+            FeatureCategory::Power,
+            "HWP energy/performance",
+        ),
+        (
+            11,
+            "HWP_PACKAGE",
+            FeatureCategory::Power,
+            "HWP package level request",
+        ),
+        (13, "HDC", FeatureCategory::Power, "Hardware Duty Cycling"),
+        (
+            14,
+            "TURBO_BOOST_3",
+            FeatureCategory::Power,
+            "Intel Turbo Boost Max 3.0",
+        ),
+        (
+            15,
+            "HWP_CAPABILITIES",
+            FeatureCategory::Power,
+            "HWP capabilities",
+        ),
+        (16, "HWP_PECI", FeatureCategory::Power, "HWP PECI override"),
+        (17, "HWP_FLEXIBLE", FeatureCategory::Power, "Flexible HWP"),
+        (
+            18,
+            "HWP_FAST_ACCESS",
+            FeatureCategory::Power,
+            "Fast access HWP request",
+        ),
+        (
+            19,
+            "HW_FEEDBACK",
+            FeatureCategory::Performance,
+            "HW_FEEDBACK interface",
+        ),
+        (
+            20,
+            "IGNORE_IDLE",
+            FeatureCategory::Power,
+            "Ignore idle logical processor HWP request",
+        ),
+        (
+            23,
+            "THREAD_DIRECTOR",
+            FeatureCategory::Performance,
+            "Intel Thread Director",
+        ),
+        (
+            24,
+            "THERM_INTERRUPT",
+            FeatureCategory::Power,
+            "IA32_THERM_INTERRUPT MSR bit 25",
+        ),
+    ];
+
+    for (bit, name, category, desc) in eax_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.eax & (1 << bit)) != 0,
+        });
+    }
+
+    let ecx_features = [
+        (
+            0,
+            "HW_FEEDBACK_PERF",
+            FeatureCategory::Performance,
+            "Hardware feedback performance/energy bias",
+        ),
+        (
+            1,
+            "HW_FEEDBACK_SIZE",
+            FeatureCategory::Performance,
+            "Hardware feedback interface size",
+        ),
+        (
+            3,
+            "PERF_PREF",
+            FeatureCategory::Performance,
+            "Performance-energy bias preference",
+        ),
+    ];
+
+    for (bit, name, category, desc) in ecx_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.ecx & (1 << bit)) != 0,
+        });
+    }
+}
+
+fn detect_perfmon(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(0xA) {
+        return;
+    }
+
+    let result = cpuid(0xA, 0);
+
+    let version = result.eax & 0xFF;
+    if version > 0 {
+        features.push(Feature {
+            name: format!("PERFMON_V{}", version),
+            category: FeatureCategory::Performance,
+            description: "Performance Monitoring version",
+            supported: true,
+        });
+    }
+
+    let ebx_features = [
+        (
+            0,
+            "PERFMON_CORE_CYCLES",
+            FeatureCategory::Performance,
+            "Core cycle event available",
+        ),
+        (
+            1,
+            "PERFMON_INSTR_RETIRED",
+            FeatureCategory::Performance,
+            "Instruction retired event available",
+        ),
+        (
+            2,
+            "PERFMON_REF_CYCLES",
+            FeatureCategory::Performance,
+            "Reference cycles event available",
+        ),
+        (
+            3,
+            "PERFMON_LLC_REF",
+            FeatureCategory::Performance,
+            "LLC reference event available",
+        ),
+        (
+            4,
+            "PERFMON_LLC_MISSES",
+            FeatureCategory::Performance,
+            "LLC misses event available",
+        ),
+        (
+            5,
+            "PERFMON_BR_INSTR",
+            FeatureCategory::Performance,
+            "Branch instruction retired event available",
+        ),
+        (
+            6,
+            "PERFMON_BR_MISPREDICT",
+            FeatureCategory::Performance,
+            "Branch mispredict retired event available",
+        ),
+    ];
+
+    for (bit, name, category, desc) in ebx_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.ebx & (1 << bit)) == 0,
+        });
+    }
+
+    let edx_features = [
+        (
+            0,
+            "PERFMON_FIXED_CTR0",
+            FeatureCategory::Performance,
+            "Fixed counter 0",
+        ),
+        (
+            1,
+            "PERFMON_FIXED_CTR1",
+            FeatureCategory::Performance,
+            "Fixed counter 1",
+        ),
+        (
+            2,
+            "PERFMON_FIXED_CTR2",
+            FeatureCategory::Performance,
+            "Fixed counter 2",
+        ),
+        (
+            15,
+            "PERFMON_ANYTHREAD_DEPRECATED",
+            FeatureCategory::Performance,
+            "AnyThread deprecation",
+        ),
+    ];
+
+    for (bit, name, category, desc) in edx_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.edx & (1 << bit)) != 0,
+        });
+    }
+}
+
+fn detect_rdt(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(0x10) {
+        return;
+    }
+
+    let result = cpuid(0x10, 0);
+
+    let ebx_features = [
+        (
+            1,
+            "RDT_L3_MONITORING",
+            FeatureCategory::Performance,
+            "L3 Cache Monitoring",
+        ),
+        (
+            2,
+            "RDT_L2_MONITORING",
+            FeatureCategory::Performance,
+            "L2 Cache Monitoring",
+        ),
+        (
+            3,
+            "RDT_MBA",
+            FeatureCategory::Performance,
+            "Memory Bandwidth Allocation",
+        ),
+    ];
+
+    for (bit, name, category, desc) in ebx_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.ebx & (1 << bit)) != 0,
+        });
+    }
+
+    if result.ebx & (1 << 1) != 0 {
+        let l3_result = cpuid(0x10, 1);
+        if l3_result.eax != 0 {
+            features.push(Feature {
+                name: "RDT_L3_CAT".to_string(),
+                category: FeatureCategory::Performance,
+                description: "L3 Cache Allocation Technology",
+                supported: true,
+            });
+        }
+        if l3_result.ecx & (1 << 2) != 0 {
+            features.push(Feature {
+                name: "RDT_L3_CDP".to_string(),
+                category: FeatureCategory::Performance,
+                description: "L3 Code/Data Prioritization",
+                supported: true,
+            });
+        }
+    }
+
+    if result.ebx & (1 << 2) != 0 {
+        let l2_result = cpuid(0x10, 2);
+        if l2_result.eax != 0 {
+            features.push(Feature {
+                name: "RDT_L2_CAT".to_string(),
+                category: FeatureCategory::Performance,
+                description: "L2 Cache Allocation Technology",
+                supported: true,
+            });
+        }
+    }
+}
+
+fn detect_sgx_extended(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(0x12) {
+        return;
+    }
+
+    let result = cpuid(0x12, 0);
+
+    let eax_features = [
+        (0, "SGX1", FeatureCategory::Security, "SGX1 leaf functions"),
+        (1, "SGX2", FeatureCategory::Security, "SGX2 leaf functions"),
+        (5, "ENCLV", FeatureCategory::Security, "ENCLV leaves"),
+        (6, "ENCLS", FeatureCategory::Security, "ENCLS leaves"),
+    ];
+
+    for (bit, name, category, desc) in eax_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.eax & (1 << bit)) != 0,
+        });
+    }
+
+    if result.ebx & 1 != 0 {
+        features.push(Feature {
+            name: "SGX_MISCSELECT".to_string(),
+            category: FeatureCategory::Security,
+            description: "SGX MISCSELECT support",
+            supported: true,
+        });
+    }
+
+    let sub1 = cpuid(0x12, 1);
+    if sub1.eax != 0 || sub1.ebx != 0 || sub1.ecx != 0 || sub1.edx != 0 {
+        features.push(Feature {
+            name: "SGX_ATTRIBUTES".to_string(),
+            category: FeatureCategory::Security,
+            description: "SGX Attributes enumeration",
+            supported: true,
+        });
+    }
+}
+
+fn detect_address_translation(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(0x18) {
+        return;
+    }
+
+    let result = cpuid(0x18, 0);
+
+    if result.eax != 0 {
+        features.push(Feature {
+            name: "DAT_ENUM".to_string(),
+            category: FeatureCategory::Memory,
+            description: "Deterministic Address Translation enumeration",
+            supported: true,
+        });
+    }
+}
+
+fn detect_amd_svm(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(0x8000_000A) {
+        return;
+    }
+
+    let result = cpuid(0x8000_000A, 0);
+
+    let edx_features = [
+        (
+            0,
+            "SVM_NPT",
+            FeatureCategory::Virtualization,
+            "Nested Page Tables",
+        ),
+        (
+            1,
+            "SVM_LBR_VIRT",
+            FeatureCategory::Virtualization,
+            "LBR Virtualization",
+        ),
+        (2, "SVM_LOCK", FeatureCategory::Virtualization, "SVM Lock"),
+        (
+            3,
+            "SVM_NRIP",
+            FeatureCategory::Virtualization,
+            "NRIP Save",
+        ),
+        (
+            4,
+            "SVM_TSC_RATE",
+            FeatureCategory::Virtualization,
+            "TSC Rate MSR",
+        ),
+        (
+            5,
+            "SVM_VMCB_CLEAN",
+            FeatureCategory::Virtualization,
+            "VMCB Clean Bits",
+        ),
+        (
+            6,
+            "SVM_FLUSH_BY_ASID",
+            FeatureCategory::Virtualization,
+            "Flush by ASID",
+        ),
+        (
+            7,
+            "SVM_DECODE_ASSISTS",
+            FeatureCategory::Virtualization,
+            "Decode Assists",
+        ),
+        (
+            10,
+            "SVM_PAUSE_FILTER",
+            FeatureCategory::Virtualization,
+            "Pause Intercept Filter",
+        ),
+        (
+            12,
+            "SVM_PAUSE_THRESHOLD",
+            FeatureCategory::Virtualization,
+            "Pause Filter Threshold",
+        ),
+        (
+            13,
+            "SVM_AVIC",
+            FeatureCategory::Virtualization,
+            "Advanced Virtual Interrupt Controller",
+        ),
+        (
+            15,
+            "SVM_V_VMSAVE_VMLOAD",
+            FeatureCategory::Virtualization,
+            "Virtual VMSAVE/VMLOAD",
+        ),
+        (16, "SVM_VGIF", FeatureCategory::Virtualization, "Virtual GIF"),
+        (
+            17,
+            "SVM_GMET",
+            FeatureCategory::Virtualization,
+            "Guest Mode Execute Trap",
+        ),
+        (
+            18,
+            "SVM_X2AVIC",
+            FeatureCategory::Virtualization,
+            "x2APIC Virtual Interrupt Controller",
+        ),
+        (
+            19,
+            "SVM_SSSE_ERR",
+            FeatureCategory::Virtualization,
+            "Supervisor Shadow Stack",
+        ),
+        (
+            20,
+            "SVM_SPEC_CTRL",
+            FeatureCategory::Security,
+            "SPEC_CTRL virtualization",
+        ),
+        (
+            21,
+            "SVM_ROGPT",
+            FeatureCategory::Virtualization,
+            "Read-Only Guest Page Table",
+        ),
+        (
+            23,
+            "SVM_HOST_MCE_OVERRIDE",
+            FeatureCategory::Virtualization,
+            "Host MCE Override",
+        ),
+        (
+            24,
+            "SVM_INVLPGB",
+            FeatureCategory::Virtualization,
+            "INVLPGB/TLBSYNC support",
+        ),
+        (25, "SVM_VNMI", FeatureCategory::Virtualization, "Virtual NMI"),
+        (
+            26,
+            "SVM_IBS_VIRT",
+            FeatureCategory::Virtualization,
+            "IBS Virtualization",
+        ),
+        (
+            27,
+            "SVM_EXT_LVT",
+            FeatureCategory::Virtualization,
+            "Extended LVT offset fault change",
+        ),
+    ];
+
+    for (bit, name, category, desc) in edx_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.edx & (1 << bit)) != 0,
+        });
+    }
+}
+
+fn detect_amd_memory_encryption(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(0x8000_001F) {
+        return;
+    }
+
+    let result = cpuid(0x8000_001F, 0);
+
+    let eax_features = [
+        (
+            0,
+            "SME",
+            FeatureCategory::Security,
+            "Secure Memory Encryption",
+        ),
+        (
+            1,
+            "SEV",
+            FeatureCategory::Security,
+            "Secure Encrypted Virtualization",
+        ),
+        (
+            2,
+            "PAGE_FLUSH_MSR",
+            FeatureCategory::Security,
+            "Page Flush MSR",
+        ),
+        (
+            3,
+            "SEV_ES",
+            FeatureCategory::Security,
+            "SEV Encrypted State",
+        ),
+        (
+            4,
+            "SEV_SNP",
+            FeatureCategory::Security,
+            "SEV Secure Nested Paging",
+        ),
+        (5, "VMPL", FeatureCategory::Security, "VM Permission Levels"),
+        (
+            6,
+            "RMPQUERY",
+            FeatureCategory::Security,
+            "RMPQUERY instruction",
+        ),
+        (
+            7,
+            "VMPL_SSS",
+            FeatureCategory::Security,
+            "VMPL Supervisor Shadow Stack",
+        ),
+        (8, "SECURE_TSC", FeatureCategory::Security, "Secure TSC"),
+        (
+            9,
+            "TSC_AUX_VIRT",
+            FeatureCategory::Virtualization,
+            "TSC_AUX Virtualization",
+        ),
+        (
+            10,
+            "HW_CACHE_COHERENCY",
+            FeatureCategory::Security,
+            "Hardware cache coherency",
+        ),
+        (
+            11,
+            "64BIT_HOST",
+            FeatureCategory::Security,
+            "SEV 64-bit host",
+        ),
+        (
+            12,
+            "REST_INJ",
+            FeatureCategory::Security,
+            "Restricted Injection",
+        ),
+        (13, "ALT_INJ", FeatureCategory::Security, "Alternate Injection"),
+        (
+            14,
+            "DEBUG_SWAP",
+            FeatureCategory::Debug,
+            "SEV Debug register swap",
+        ),
+        (
+            15,
+            "PREVENT_HOST_IBS",
+            FeatureCategory::Security,
+            "Prevent host IBS",
+        ),
+        (
+            16,
+            "VTE",
+            FeatureCategory::Security,
+            "Virtual Transparent Encryption",
+        ),
+        (
+            17,
+            "VMGEXIT_PARAM",
+            FeatureCategory::Virtualization,
+            "VMGEXIT parameter",
+        ),
+        (
+            18,
+            "VIRT_TOM_MSR",
+            FeatureCategory::Virtualization,
+            "Virtual TOM MSR",
+        ),
+        (
+            19,
+            "IBS_VIRT_GIF",
+            FeatureCategory::Virtualization,
+            "IBS GIF virtualization",
+        ),
+        (
+            24,
+            "VMSA_REG_PROT",
+            FeatureCategory::Security,
+            "VMSA register protection",
+        ),
+        (
+            25,
+            "SMT_PROTECTION",
+            FeatureCategory::Security,
+            "SMT protection",
+        ),
+        (28, "SECURE_AVIC", FeatureCategory::Security, "Secure AVIC"),
+    ];
+
+    for (bit, name, category, desc) in eax_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.eax & (1 << bit)) != 0,
+        });
+    }
+}
+
+fn detect_amd_extended_features2(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(0x8000_0021) {
+        return;
+    }
+
+    let result = cpuid(0x8000_0021, 0);
+
+    let eax_features = [
+        (
+            0,
+            "NO_NESTED_DATA_BP",
+            FeatureCategory::Security,
+            "No nested data breakpoints",
+        ),
+        (
+            1,
+            "FS_GS_NO_SERIALIZING",
+            FeatureCategory::Performance,
+            "FS/GS base non-serializing",
+        ),
+        (
+            2,
+            "LFENCE_SERIALIZING",
+            FeatureCategory::Security,
+            "LFENCE always serializing",
+        ),
+        (
+            3,
+            "SMM_PG_CFG_LOCK",
+            FeatureCategory::Security,
+            "SMM page config lock",
+        ),
+        (
+            6,
+            "NULL_SEL_CLEARS_BASE",
+            FeatureCategory::System,
+            "Null selector clears base",
+        ),
+        (7, "UAI", FeatureCategory::Memory, "Upper Address Ignore"),
+        (8, "AUTO_IBRS", FeatureCategory::Security, "Automatic IBRS"),
+        (
+            9,
+            "NO_SMM_CTL_MSR",
+            FeatureCategory::Security,
+            "No SMM_CTL MSR",
+        ),
+        (
+            10,
+            "FSRS",
+            FeatureCategory::Performance,
+            "Fast short REP STOSB",
+        ),
+        (
+            11,
+            "FSRC",
+            FeatureCategory::Performance,
+            "Fast short REP CMPSB",
+        ),
+        (
+            13,
+            "PREFETCH_CTL",
+            FeatureCategory::Performance,
+            "Prefetch control MSR",
+        ),
+        (
+            17,
+            "CPUID_DIS",
+            FeatureCategory::Security,
+            "CPUID disable for non-privileged",
+        ),
+        (
+            18,
+            "EPSF",
+            FeatureCategory::Security,
+            "Enhanced Predictive Store Forwarding",
+        ),
+        (
+            19,
+            "AGPR",
+            FeatureCategory::Performance,
+            "Alternate GPR for exception state",
+        ),
+    ];
+
+    for (bit, name, category, desc) in eax_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.eax & (1 << bit)) != 0,
+        });
+    }
+}
+
+fn detect_amd_perf_optimization(features: &mut Vec<Feature>) {
+    if !is_leaf_supported(0x8000_001A) {
+        return;
+    }
+
+    let result = cpuid(0x8000_001A, 0);
+
+    let eax_features = [
+        (0, "FP128", FeatureCategory::Simd, "128-bit FP execution"),
+        (
+            1,
+            "MOVU",
+            FeatureCategory::Simd,
+            "MOVU instructions better than MOVL/MOVH",
+        ),
+        (2, "FP256", FeatureCategory::Simd, "256-bit FP execution"),
+    ];
+
+    for (bit, name, category, desc) in eax_features.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (result.eax & (1 << bit)) != 0,
         });
     }
 }
