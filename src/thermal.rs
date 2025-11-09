@@ -1,5 +1,5 @@
 //! CPU Thermal and Power Management Detection
-//! 
+//!
 //! Detects thermal monitoring and power management features.
 
 use crate::cpuid::{cpuid, is_leaf_supported};
@@ -37,7 +37,7 @@ impl ThermalInfo {
 
         if is_leaf_supported(6) {
             let result = cpuid(6, 0);
-            
+
             info.digital_thermal_sensor = (result.eax & (1 << 0)) != 0;
             info.turbo_boost = (result.eax & (1 << 1)) != 0;
             info.arat = (result.eax & (1 << 2)) != 0;

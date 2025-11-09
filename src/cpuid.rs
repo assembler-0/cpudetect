@@ -1,5 +1,5 @@
 //! Raw CPUID instruction interface
-//! 
+//!
 //! Provides safe wrappers around the x86_64 CPUID instruction.
 //! This module does one thing: execute CPUID and return results.
 

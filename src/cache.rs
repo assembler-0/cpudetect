@@ -1,5 +1,5 @@
 //! CPU Cache Detection
-//! 
+//!
 //! Detects CPU cache hierarchy, sizes, and associativity.
 
 use crate::cpuid::{cpuid, is_leaf_supported};
@@ -121,12 +121,12 @@ fn detect_intel_caches(caches: &mut Vec<CacheInfo>) {
 fn detect_amd_caches(caches: &mut Vec<CacheInfo>) {
     if is_leaf_supported(0x8000_0005) {
         let result = cpuid(0x8000_0005, 0);
-        
+
         // L1 Data Cache
         let l1d_size = ((result.ecx >> 24) & 0xFF) as u64 * 1024;
         let l1d_ways = ((result.ecx >> 16) & 0xFF) as u32;
         let l1d_line_size = (result.ecx & 0xFF) as u32;
-        
+
         if l1d_size > 0 {
             caches.push(CacheInfo {
                 level: CacheLevel::L1,
@@ -143,7 +143,7 @@ fn detect_amd_caches(caches: &mut Vec<CacheInfo>) {
         let l1i_size = ((result.edx >> 24) & 0xFF) as u64 * 1024;
         let l1i_ways = ((result.edx >> 16) & 0xFF) as u32;
         let l1i_line_size = (result.edx & 0xFF) as u32;
-        
+
         if l1i_size > 0 {
             caches.push(CacheInfo {
                 level: CacheLevel::L1,
@@ -159,12 +159,12 @@ fn detect_amd_caches(caches: &mut Vec<CacheInfo>) {
 
     if is_leaf_supported(0x8000_0006) {
         let result = cpuid(0x8000_0006, 0);
-        
+
         // L2 Cache
         let l2_size = ((result.ecx >> 16) & 0xFFFF) as u64 * 1024;
         let l2_ways = ((result.ecx >> 12) & 0xF) as u32;
         let l2_line_size = (result.ecx & 0xFF) as u32;
-        
+
         if l2_size > 0 {
             caches.push(CacheInfo {
                 level: CacheLevel::L2,
@@ -181,7 +181,7 @@ fn detect_amd_caches(caches: &mut Vec<CacheInfo>) {
         let l3_size = ((result.edx >> 18) & 0x3FFF) as u64 * 512 * 1024;
         let l3_ways = ((result.edx >> 12) & 0xF) as u32;
         let l3_line_size = (result.edx & 0xFF) as u32;
-        
+
         if l3_size > 0 {
             caches.push(CacheInfo {
                 level: CacheLevel::L3,

@@ -25,22 +25,46 @@ impl CpuTopology {
     pub fn detect() -> Self {
         let mut logical_processors = 1;
         let mut physical_cores = 1;
+        let mut threads_per_core = 1;
         let mut has_hyperthreading = false;
         let mut hybrid = false;
 
+        // Get Hyper-Threading status from leaf 1
         if is_leaf_supported(1) {
             let result = cpuid(1, 0);
             has_hyperthreading = (result.edx & (1 << 28)) != 0;
-            logical_processors = ((result.ebx >> 16) & 0xFF) as u32;
         }
 
-        // Try leaf 0xB for x2APIC topology
+        // Prioritize leaf 0xB for topology information
         if is_leaf_supported(0xB) {
-            physical_cores = detect_cores_leaf_b();
-        } else if is_leaf_supported(4) {
-            // Fallback to leaf 4
-            let result = cpuid(4, 0);
-            physical_cores = ((result.eax >> 26) & 0x3F) as u32 + 1;
+            threads_per_core = detect_threads_per_core_leaf_b();
+            logical_processors = detect_logical_processors_leaf_b();
+            if logical_processors > 0 && threads_per_core > 0 {
+                physical_cores = logical_processors / threads_per_core;
+            }
+        } else {
+            // Fallback if leaf 0xB is not supported
+            if is_leaf_supported(1) {
+                let result = cpuid(1, 0);
+                // For older CPUs, EBX[23:16] might give logical processors
+                logical_processors = ((result.ebx >> 16) & 0xFF) as u32;
+            }
+            if is_leaf_supported(4) {
+                let result = cpuid(4, 0);
+                physical_cores = ((result.eax >> 26) & 0x3F) as u32 + 1;
+            }
+
+            // If logical_processors is still 1 (and hyperthreading is off), set it to physical_cores
+            if logical_processors == 1 && !has_hyperthreading {
+                logical_processors = physical_cores;
+            }
+            
+            // Final check for threads_per_core in fallback
+            if physical_cores > 0 {
+                threads_per_core = logical_processors / physical_cores;
+            } else {
+                threads_per_core = 1;
+            }
         }
 
         // Check for hybrid architecture (Intel 12th gen+)
@@ -48,12 +72,6 @@ impl CpuTopology {
             let result = cpuid(7, 0);
             hybrid = (result.edx & (1 << 15)) != 0;
         }
-
-        let threads_per_core = if physical_cores > 0 {
-            logical_processors / physical_cores
-        } else {
-            1
-        };
 
         Self {
             logical_processors,
@@ -76,21 +94,30 @@ impl fmt::Display for CpuTopology {
     }
 }
 
-fn detect_cores_leaf_b() -> u32 {
-    let mut cores = 1;
-    
+fn detect_threads_per_core_leaf_b() -> u32 {
     for subleaf in 0..10 {
         let result = cpuid(0xB, subleaf);
-        if result.ecx == 0 {
-            break;
-        }
-        
         let level_type = (result.ecx >> 8) & 0xFF;
-        if level_type == 2 {
-            cores = result.ebx & 0xFFFF;
+        if level_type == 1 { // SMT level
+            return result.ebx & 0xFFFF;
+        }
+        if level_type == 0 {
             break;
         }
     }
-    
-    cores
+    1
+}
+
+fn detect_logical_processors_leaf_b() -> u32 {
+    for subleaf in 0..10 {
+        let result = cpuid(0xB, subleaf);
+        let level_type = (result.ecx >> 8) & 0xFF;
+        if level_type == 2 { // Core level
+            return result.ebx & 0xFFFF;
+        }
+        if level_type == 0 {
+            break;
+        }
+    }
+    1
 }
