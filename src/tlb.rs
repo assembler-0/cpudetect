@@ -2,8 +2,17 @@
 //!
 //! Detects TLB sizes and configurations.
 
+#[cfg(feature = "alloc")]
 use crate::cpuid::{cpuid, is_leaf_supported};
 
+#[cfg(feature = "alloc")]
+use alloc::string::{String, ToString};
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+use alloc::format;
+
+#[cfg(feature = "alloc")]
 #[derive(Debug, Clone)]
 pub struct TlbEntry {
     pub page_size: String,
@@ -14,29 +23,38 @@ pub struct TlbEntry {
 
 #[derive(Debug, Clone)]
 pub struct TlbInfo {
+    #[cfg(feature = "alloc")]
     pub entries: Vec<TlbEntry>,
 }
 
 impl TlbInfo {
     pub fn detect() -> Self {
+        #[cfg(feature = "alloc")]
         let mut entries = Vec::new();
 
-        if is_leaf_supported(0x8000_0005) {
-            detect_amd_l1_tlb(&mut entries);
+        #[cfg(feature = "alloc")]
+        {
+            if is_leaf_supported(0x8000_0005) {
+                detect_amd_l1_tlb(&mut entries);
+            }
+
+            if is_leaf_supported(0x8000_0006) {
+                detect_amd_l2_tlb(&mut entries);
+            }
+
+            if is_leaf_supported(0x18) {
+                detect_intel_tlb(&mut entries);
+            }
         }
 
-        if is_leaf_supported(0x8000_0006) {
-            detect_amd_l2_tlb(&mut entries);
+        Self {
+            #[cfg(feature = "alloc")]
+            entries
         }
-
-        if is_leaf_supported(0x18) {
-            detect_intel_tlb(&mut entries);
-        }
-
-        Self { entries }
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_amd_l1_tlb(entries: &mut Vec<TlbEntry>) {
     let result = cpuid(0x8000_0005, 0);
 
@@ -81,6 +99,7 @@ fn detect_amd_l1_tlb(entries: &mut Vec<TlbEntry>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_amd_l2_tlb(entries: &mut Vec<TlbEntry>) {
     let result = cpuid(0x8000_0006, 0);
 
@@ -125,6 +144,7 @@ fn detect_amd_l2_tlb(entries: &mut Vec<TlbEntry>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_intel_tlb(entries: &mut Vec<TlbEntry>) {
     for subleaf in 0..10 {
         let result = cpuid(0x18, subleaf);
@@ -132,7 +152,7 @@ fn detect_intel_tlb(entries: &mut Vec<TlbEntry>) {
             break;
         }
 
-        let tlb_type = match result.edx & 0x1F {
+        let tlb_type_str = match result.edx & 0x1F {
             0 => continue,
             1 => "Data",
             2 => "Instruction",
@@ -160,11 +180,12 @@ fn detect_intel_tlb(entries: &mut Vec<TlbEntry>) {
             } else {
                 format!("{}-way", ways)
             },
-            tlb_type: format!("L{} {}", level, tlb_type),
+            tlb_type: format!("L{} {}", level, tlb_type_str),
         });
     }
 }
 
+#[cfg(feature = "alloc")]
 fn decode_assoc(val: u32) -> String {
     match val {
         0x00 => "Reserved".to_string(),
@@ -175,6 +196,7 @@ fn decode_assoc(val: u32) -> String {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn decode_assoc_l2(val: u32) -> String {
     match val {
         0x0 => "Disabled".to_string(),

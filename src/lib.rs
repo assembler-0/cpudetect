@@ -3,8 +3,18 @@
 //! A clean, modular library for detecting CPU features and capabilities.
 //! Follows Unix philosophy: each module does one thing well.
 
+#![no_std]
 #![cfg(target_arch = "x86_64")]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+#[cfg(all(not(feature = "alloc"), feature = "std"))]
+use std::vec::Vec;
+
+pub mod ffi;
 pub mod address;
 pub mod cache;
 pub mod cpuid;
@@ -20,22 +30,27 @@ pub mod vendor;
 
 pub use address::AddressInfo;
 pub use cache::{CacheInfo, CacheLevel, CacheType};
-pub use features::{CpuFeatures, Feature, FeatureCategory, FeatureSet};
+pub use features::{CpuFeatures, FeatureSet, FeatureCategory};
+#[cfg(feature = "alloc")]
+pub use features::Feature;
 pub use frequency::FrequencyInfo;
 pub use msr::MsrInfo;
 pub use platform::PlatformInfo;
 pub use power::PowerInfo;
-pub use tlb::{TlbEntry, TlbInfo};
+#[cfg(feature = "alloc")]
+pub use tlb::TlbEntry;
+pub use tlb::TlbInfo;
 pub use topology::{CoreType, CpuTopology};
 pub use vendor::{CpuVendor, VendorInfo};
 
-use std::fmt;
+use core::fmt;
 
 #[derive(Debug, Clone)]
 pub struct CpuInfo {
     pub vendor: VendorInfo,
     pub features: CpuFeatures,
     pub topology: CpuTopology,
+    #[cfg(feature = "alloc")]
     pub cache: Vec<CacheInfo>,
     pub power: PowerInfo,
     pub frequency: FrequencyInfo,
@@ -51,6 +66,7 @@ impl CpuInfo {
             vendor: VendorInfo::detect(),
             features: CpuFeatures::detect(),
             topology: CpuTopology::detect(),
+            #[cfg(feature = "alloc")]
             cache: CacheInfo::detect_all(),
             power: PowerInfo::detect(),
             frequency: FrequencyInfo::detect(),
@@ -67,9 +83,12 @@ impl fmt::Display for CpuInfo {
         writeln!(f, "{}", self.vendor)?;
         writeln!(f, "\n{}", self.topology)?;
         writeln!(f, "\n{}", self.features)?;
-        writeln!(f, "\nCache Information:")?;
-        for cache in &self.cache {
-            writeln!(f, "  {}", cache)?;
+        #[cfg(feature = "alloc")]
+        {
+            writeln!(f, "\nCache Information:")?;
+            for cache in &self.cache {
+                writeln!(f, "  {}", cache)?;
+            }
         }
         writeln!(
             f,

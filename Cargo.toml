@@ -11,9 +11,15 @@ crate-type = ["rlib", "dylib", "staticlib"]
 [[bin]]
 name = "lscpu"
 path = "bin/lscpu.rs"
+required-features = ["std"]
+
+[features]
+default = ["std"]
+std = ["alloc", "bitflags/std", "dep:colored"]
+alloc = []
 
 [dependencies]
-bitflags = "2.10.0"
-colored = "3.0.0"
+bitflags = { version = "2.10.0", default-features = false }
+colored = { version = "3.0.0", optional = true }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]

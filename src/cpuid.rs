@@ -3,7 +3,7 @@
 //! Provides safe wrappers around the x86_64 CPUID instruction.
 //! This module does one thing: execute CPUID and return results.
 
-use std::arch::x86_64::__cpuid_count;
+use core::arch::x86_64::__cpuid_count;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CpuidResult {

@@ -2,8 +2,12 @@
 //!
 //! Detects CPU cache hierarchy, sizes, and associativity.
 
+#[cfg(feature = "alloc")]
 use crate::cpuid::{cpuid, is_leaf_supported};
-use std::fmt;
+use core::fmt;
+
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheLevel {
@@ -32,6 +36,7 @@ pub struct CacheInfo {
 }
 
 impl CacheInfo {
+    #[cfg(feature = "alloc")]
     pub fn detect_all() -> Vec<Self> {
         let mut caches = Vec::new();
 
@@ -74,6 +79,7 @@ impl fmt::Display for CacheInfo {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_intel_caches(caches: &mut Vec<CacheInfo>) {
     for index in 0..32 {
         let result = cpuid(4, index);
@@ -118,6 +124,7 @@ fn detect_intel_caches(caches: &mut Vec<CacheInfo>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_amd_caches(caches: &mut Vec<CacheInfo>) {
     if is_leaf_supported(0x8000_0005) {
         let result = cpuid(0x8000_0005, 0);

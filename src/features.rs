@@ -4,7 +4,14 @@
 
 use crate::cpuid::{cpuid, is_leaf_supported};
 use bitflags::bitflags;
-use std::fmt;
+use core::fmt;
+
+#[cfg(feature = "alloc")]
+use alloc::string::{String, ToString};
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+use alloc::format;
 
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +62,7 @@ pub enum FeatureCategory {
     System,
 }
 
+#[cfg(feature = "alloc")]
 #[derive(Debug, Clone)]
 pub struct Feature {
     pub name: String,
@@ -66,118 +74,129 @@ pub struct Feature {
 #[derive(Debug, Clone)]
 pub struct CpuFeatures {
     pub basic: FeatureSet,
+    #[cfg(feature = "alloc")]
     pub all_features: Vec<Feature>,
 }
 
 impl CpuFeatures {
     pub fn detect() -> Self {
         let mut basic = FeatureSet::empty();
+        #[cfg(feature = "alloc")]
         let mut all_features = Vec::new();
 
         // Leaf 1: Basic features
         if is_leaf_supported(1) {
             let result = cpuid(1, 0);
             detect_leaf1_edx(result.edx, &mut basic);
-            detect_leaf1_ecx(result.ecx, &mut all_features);
-            add_leaf1_edx_features(result.edx, &mut all_features);
+            #[cfg(feature = "alloc")]
+            {
+                detect_leaf1_ecx(result.ecx, &mut all_features);
+                add_leaf1_edx_features(result.edx, &mut all_features);
+            }
         }
 
-        // Leaf 7: Structured extended features
-        if is_leaf_supported(7) {
-            detect_leaf7(&mut all_features);
-        }
+        #[cfg(feature = "alloc")]
+        {
+            // Leaf 7: Structured extended features
+            if is_leaf_supported(7) {
+                detect_leaf7(&mut all_features);
+            }
 
-        // Leaf 7 subleaf 1
-        if is_leaf_supported(7) {
-            let vendor_info_for_avx10 = crate::vendor::VendorInfo::detect();
-            detect_leaf7_sub1(&mut all_features, &vendor_info_for_avx10);
-        }
+            // Leaf 7 subleaf 1
+            if is_leaf_supported(7) {
+                let vendor_info_for_avx10 = crate::vendor::VendorInfo::detect();
+                detect_leaf7_sub1(&mut all_features, &vendor_info_for_avx10);
+            }
 
-        // Leaf 7 subleaf 2
-        if is_leaf_supported(7) {
-            detect_leaf7_sub2(&mut all_features);
-        }
+            // Leaf 7 subleaf 2
+            if is_leaf_supported(7) {
+                detect_leaf7_sub2(&mut all_features);
+            }
 
-        // Leaf 7 subleaf 3
-        if is_leaf_supported(7) {
-            detect_leaf7_sub3(&mut all_features);
-        }
+            // Leaf 7 subleaf 3
+            if is_leaf_supported(7) {
+                detect_leaf7_sub3(&mut all_features);
+            }
 
-        // Leaf 6: Thermal and Power Management
-        if is_leaf_supported(6) {
-            detect_thermal_power(&mut all_features);
-        }
+            // Leaf 6: Thermal and Power Management
+            if is_leaf_supported(6) {
+                detect_thermal_power(&mut all_features);
+            }
 
-        // Leaf 0xA: Performance Monitoring
-        if is_leaf_supported(0xA) {
-            detect_perfmon(&mut all_features);
-        }
+            // Leaf 0xA: Performance Monitoring
+            if is_leaf_supported(0xA) {
+                detect_perfmon(&mut all_features);
+            }
 
-        // Leaf 0x10: Resource Director Technology
-        if is_leaf_supported(0x10) {
-            detect_rdt(&mut all_features);
-        }
+            // Leaf 0x10: Resource Director Technology
+            if is_leaf_supported(0x10) {
+                detect_rdt(&mut all_features);
+            }
 
-        // Leaf 0x12: SGX Extended
-        if is_leaf_supported(0x12) {
-            detect_sgx_extended(&mut all_features);
-        }
+            // Leaf 0x12: SGX Extended
+            if is_leaf_supported(0x12) {
+                detect_sgx_extended(&mut all_features);
+            }
 
-        // Leaf 0x18: Deterministic Address Translation
-        if is_leaf_supported(0x18) {
-            detect_address_translation(&mut all_features);
-        }
+            // Leaf 0x18: Deterministic Address Translation
+            if is_leaf_supported(0x18) {
+                detect_address_translation(&mut all_features);
+            }
 
-        // Leaf 0x24: AVX10
-        if is_leaf_supported(0x24) {
-            detect_avx10(&mut all_features);
-        }
+            // Leaf 0x24: AVX10
+            if is_leaf_supported(0x24) {
+                detect_avx10(&mut all_features);
+            }
 
-        // Extended leaves: Additional AMD/Intel features
-        if is_leaf_supported(0x8000_0001) {
-            detect_extended_features(&mut all_features);
-        }
+            // Extended leaves: Additional AMD/Intel features
+            if is_leaf_supported(0x8000_0001) {
+                detect_extended_features(&mut all_features);
+            }
 
-        // AMD Extended Features
-        if is_leaf_supported(0x8000_0008) {
-            detect_amd_extended(&mut all_features);
-        }
+            // AMD Extended Features
+            if is_leaf_supported(0x8000_0008) {
+                detect_amd_extended(&mut all_features);
+            }
 
-        // AMD SVM Extended
-        if is_leaf_supported(0x8000_000A) {
-            detect_amd_svm(&mut all_features);
-        }
+            // AMD SVM Extended
+            if is_leaf_supported(0x8000_000A) {
+                detect_amd_svm(&mut all_features);
+            }
 
-        // AMD Performance Optimization
-        if is_leaf_supported(0x8000_001A) {
-            detect_amd_perf_optimization(&mut all_features);
-        }
+            // AMD Performance Optimization
+            if is_leaf_supported(0x8000_001A) {
+                detect_amd_perf_optimization(&mut all_features);
+            }
 
-        // AMD Memory Encryption
-        if is_leaf_supported(0x8000_001F) {
-            detect_amd_memory_encryption(&mut all_features);
-        }
+            // AMD Memory Encryption
+            if is_leaf_supported(0x8000_001F) {
+                detect_amd_memory_encryption(&mut all_features);
+            }
 
-        // AMD Extended Features 2
-        if is_leaf_supported(0x8000_0021) {
-            detect_amd_extended_features2(&mut all_features);
-        }
+            // AMD Extended Features 2
+            if is_leaf_supported(0x8000_0021) {
+                detect_amd_extended_features2(&mut all_features);
+            }
 
-        // Intel specific leaves
-        detect_intel_specific(&mut all_features);
+            // Intel specific leaves
+            detect_intel_specific(&mut all_features);
+        }
 
         Self {
             basic,
+            #[cfg(feature = "alloc")]
             all_features,
         }
     }
 
+    #[cfg(feature = "alloc")]
     pub fn has_feature(&self, name: &str) -> bool {
         self.all_features
             .iter()
             .any(|f| f.name == name && f.supported)
     }
 
+    #[cfg(feature = "alloc")]
     pub fn features_by_category(&self, category: FeatureCategory) -> Vec<&Feature> {
         self.all_features
             .iter()
@@ -185,6 +204,7 @@ impl CpuFeatures {
             .collect()
     }
 
+    #[cfg(feature = "alloc")]
     pub fn all_supported(&self) -> Vec<&Feature> {
         self.all_features.iter().filter(|f| f.supported).collect()
     }
@@ -195,28 +215,29 @@ impl fmt::Display for CpuFeatures {
         writeln!(f, "CPU Features:")?;
         writeln!(f, "  Basic: {:?}", self.basic)?;
 
-        let categories = [
-            FeatureCategory::Simd,
-            FeatureCategory::Cryptography,
-            FeatureCategory::Security,
-            FeatureCategory::Virtualization,
-            FeatureCategory::Performance,
-            FeatureCategory::Memory,
-        ];
+        #[cfg(feature = "alloc")]
+        {
+            let categories = [
+                FeatureCategory::Simd,
+                FeatureCategory::Cryptography,
+                FeatureCategory::Security,
+                FeatureCategory::Virtualization,
+                FeatureCategory::Performance,
+                FeatureCategory::Memory,
+            ];
 
-        for cat in &categories {
-            let features = self.features_by_category(*cat);
-            if !features.is_empty() {
-                writeln!(
-                    f,
-                    "  {:?}: {}",
-                    cat,
-                    features
-                        .iter()
-                        .map(|fe| fe.name.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )?;
+            for cat in &categories {
+                let features = self.features_by_category(*cat);
+                if !features.is_empty() {
+                    write!(f, "  {:?}: ", cat)?;
+                    for (i, fe) in features.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", fe.name)?;
+                    }
+                    writeln!(f)?;
+                }
             }
         }
 
@@ -296,6 +317,7 @@ fn detect_leaf1_edx(edx: u32, features: &mut FeatureSet) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_leaf1_ecx(ecx: u32, features: &mut Vec<Feature>) {
     let feature_map = [
         (
@@ -436,7 +458,7 @@ fn detect_leaf1_ecx(ecx: u32, features: &mut Vec<Feature>) {
     }
 }
 
-// Add a function to detect leaf 1 EDX features and add them to all_features
+#[cfg(feature = "alloc")]
 fn add_leaf1_edx_features(edx: u32, features: &mut Vec<Feature>) {
     let edx_feature_map = [
         (8, "CX8", FeatureCategory::System, "CMPXCHG8B instruction"),
@@ -452,6 +474,7 @@ fn add_leaf1_edx_features(edx: u32, features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_leaf7(features: &mut Vec<Feature>) {
     let result = cpuid(7, 0);
 
@@ -925,6 +948,7 @@ fn detect_leaf7(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_leaf7_sub1(features: &mut Vec<Feature>, vendor_info: &crate::vendor::VendorInfo) {
     let result = cpuid(7, 1);
 
@@ -1108,27 +1132,19 @@ fn detect_leaf7_sub1(features: &mut Vec<Feature>, vendor_info: &crate::vendor::V
         });
     }
 
-    // Check for AVX10 specifically - only add if vendor is AMD or if leaf 0x24 indicates support
-    // Also verify that the CPU model is known to support AVX10 to avoid false positives
+    // Check for AVX10 specifically
     let avx10_bit_set = (result.edx & (1 << 18)) != 0;
     let avx10_supported = if vendor_info.vendor == crate::vendor::CpuVendor::Intel {
-        // For Intel, check leaf 0x24 to confirm AVX10 support and verify CPU model
         let avx10_result = cpuid(0x24, 0);
         let avx10_version = avx10_result.ebx & 0xFF;
         
-        // Additionally, get CPU info to verify if this model should support AVX10
         let cpu_info = cpuid(1, 0);
-        // Calculate extended family and model
         let base_family = (cpu_info.eax >> 8) & 0xF;
         let ext_family = (cpu_info.eax >> 20) & 0xFF;
         let family = if base_family == 0xF { base_family + ext_family } else { base_family };
                 
-        // AVX10 is not expected on older Intel families/models (e.g., 13th gen Core series which has family 6)
-        // Known AVX10 supporting Intel families would be newer ones
-        // For now, we'll be conservative and disable AVX10 for family 6 (which includes 13th gen Core)
-        avx10_version > 0 && family != 6  // Family 6 includes Core series, which shouldn't have AVX10 yet
+        avx10_version > 0 && family != 6
     } else {
-        // For AMD, rely on leaf 7 subleaf 1 bit
         avx10_bit_set
     };
 
@@ -1142,6 +1158,7 @@ fn detect_leaf7_sub1(features: &mut Vec<Feature>, vendor_info: &crate::vendor::V
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_leaf7_sub2(features: &mut Vec<Feature>) {
     let result = cpuid(7, 2);
 
@@ -1179,6 +1196,7 @@ fn detect_leaf7_sub2(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_extended_features(features: &mut Vec<Feature>) {
     let result = cpuid(0x8000_0001, 0);
 
@@ -1366,6 +1384,7 @@ fn detect_extended_features(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_amd_extended(features: &mut Vec<Feature>) {
     let result = cpuid(0x8000_0008, 0);
 
@@ -1532,8 +1551,8 @@ fn detect_amd_extended(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_intel_specific(features: &mut Vec<Feature>) {
-    // Intel leaf 0xD - Extended state enumeration
     if is_leaf_supported(0xD) {
         let result = cpuid(0xD, 1);
 
@@ -1580,7 +1599,6 @@ fn detect_intel_specific(features: &mut Vec<Feature>) {
         }
     }
 
-    // Intel leaf 0x14 - Processor Trace
     if is_leaf_supported(0x14) {
         let result = cpuid(0x14, 0);
         let pt_features = [
@@ -1600,7 +1618,6 @@ fn detect_intel_specific(features: &mut Vec<Feature>) {
         }
     }
 
-    // Intel leaf 0x1F - V2 Extended Topology
     if is_leaf_supported(0x1F) {
         features.push(Feature {
             name: "TOPOLOGY_V2".to_string(),
@@ -1610,7 +1627,6 @@ fn detect_intel_specific(features: &mut Vec<Feature>) {
         });
     }
 
-    // Intel leaf 0x1A - Hybrid Information
     if is_leaf_supported(0x1A) {
         features.push(Feature {
             name: "HYBRID_INFO".to_string(),
@@ -1620,7 +1636,6 @@ fn detect_intel_specific(features: &mut Vec<Feature>) {
         });
     }
 
-    // Intel leaf 0x1B - PCONFIG
     if is_leaf_supported(0x1B) {
         features.push(Feature {
             name: "PCONFIG_ENUM".to_string(),
@@ -1630,7 +1645,6 @@ fn detect_intel_specific(features: &mut Vec<Feature>) {
         });
     }
 
-    // Intel leaf 0x1C - Last Branch Records
     if is_leaf_supported(0x1C) {
         features.push(Feature {
             name: "LBR_INFO".to_string(),
@@ -1640,7 +1654,6 @@ fn detect_intel_specific(features: &mut Vec<Feature>) {
         });
     }
 
-    // Intel leaf 0x1D - Tile Information
     if is_leaf_supported(0x1D) {
         features.push(Feature {
             name: "TILE_INFO".to_string(),
@@ -1650,7 +1663,6 @@ fn detect_intel_specific(features: &mut Vec<Feature>) {
         });
     }
 
-    // Intel leaf 0x1E - TMUL Information
     if is_leaf_supported(0x1E) {
         features.push(Feature {
             name: "TMUL_INFO".to_string(),
@@ -1661,6 +1673,7 @@ fn detect_intel_specific(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_leaf7_sub3(features: &mut Vec<Feature>) {
     if !is_leaf_supported(7) {
         return;
@@ -1699,6 +1712,7 @@ fn detect_leaf7_sub3(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_avx10(features: &mut Vec<Feature>) {
     if !is_leaf_supported(0x24) {
         return;
@@ -1742,6 +1756,7 @@ fn detect_avx10(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_thermal_power(features: &mut Vec<Feature>) {
     if !is_leaf_supported(6) {
         return;
@@ -1883,6 +1898,7 @@ fn detect_thermal_power(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_perfmon(features: &mut Vec<Feature>) {
     if !is_leaf_supported(0xA) {
         return;
@@ -1991,6 +2007,7 @@ fn detect_perfmon(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_rdt(features: &mut Vec<Feature>) {
     if !is_leaf_supported(0x10) {
         return;
@@ -2061,6 +2078,7 @@ fn detect_rdt(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_sgx_extended(features: &mut Vec<Feature>) {
     if !is_leaf_supported(0x12) {
         return;
@@ -2104,6 +2122,7 @@ fn detect_sgx_extended(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_address_translation(features: &mut Vec<Feature>) {
     if !is_leaf_supported(0x18) {
         return;
@@ -2121,6 +2140,7 @@ fn detect_address_translation(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_amd_svm(features: &mut Vec<Feature>) {
     if !is_leaf_supported(0x8000_000A) {
         return;
@@ -2264,6 +2284,7 @@ fn detect_amd_svm(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_amd_memory_encryption(features: &mut Vec<Feature>) {
     if !is_leaf_supported(0x8000_001F) {
         return;
@@ -2402,6 +2423,7 @@ fn detect_amd_memory_encryption(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_amd_extended_features2(features: &mut Vec<Feature>) {
     if !is_leaf_supported(0x8000_0021) {
         return;
@@ -2496,6 +2518,7 @@ fn detect_amd_extended_features2(features: &mut Vec<Feature>) {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn detect_amd_perf_optimization(features: &mut Vec<Feature>) {
     if !is_leaf_supported(0x8000_001A) {
         return;

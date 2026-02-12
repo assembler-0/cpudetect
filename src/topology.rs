@@ -3,7 +3,7 @@
 //! Detects CPU core count, threading, and topology information.
 
 use crate::cpuid::{cpuid, is_leaf_supported};
-use std::fmt;
+use core::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoreType {

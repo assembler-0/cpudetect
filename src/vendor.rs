@@ -2,8 +2,15 @@
 //!
 //! Identifies CPU manufacturer and provides vendor-specific information.
 
-use crate::cpuid::{cpuid, CpuidResult};
-use std::fmt;
+use crate::cpuid::cpuid;
+#[cfg(feature = "alloc")]
+use crate::cpuid::CpuidResult;
+use core::fmt;
+
+#[cfg(feature = "alloc")]
+use alloc::string::{String, ToString};
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CpuVendor {
@@ -29,7 +36,9 @@ impl CpuVendor {
 #[derive(Debug, Clone)]
 pub struct VendorInfo {
     pub vendor: CpuVendor,
+    #[cfg(feature = "alloc")]
     pub vendor_string: String,
+    #[cfg(feature = "alloc")]
     pub brand_string: String,
     pub family: u32,
     pub model: u32,
@@ -39,12 +48,22 @@ pub struct VendorInfo {
 impl VendorInfo {
     pub fn detect() -> Self {
         let vendor_result = cpuid(0, 0);
+        #[cfg(feature = "alloc")]
         let vendor_string = read_vendor_string(&vendor_result);
+        
+        #[cfg(feature = "alloc")]
         let vendor = match vendor_string.as_str() {
             "GenuineIntel" => CpuVendor::Intel,
             "AuthenticAMD" => CpuVendor::Amd,
             "HygonGenuine" => CpuVendor::Hygon,
             "  Shanghai  " => CpuVendor::Zhaoxin,
+            _ => CpuVendor::Unknown,
+        };
+        
+        #[cfg(not(feature = "alloc"))]
+        let vendor = match vendor_result.ebx {
+            0x756e6547 => CpuVendor::Intel, // "Genu"
+            0x68747541 => CpuVendor::Amd,   // "Auth"
             _ => CpuVendor::Unknown,
         };
 
@@ -53,11 +72,14 @@ impl VendorInfo {
         let model = extract_model(signature.eax);
         let stepping = signature.eax & 0xF;
 
+        #[cfg(feature = "alloc")]
         let brand_string = read_brand_string();
 
         Self {
             vendor,
+            #[cfg(feature = "alloc")]
             vendor_string,
+            #[cfg(feature = "alloc")]
             brand_string,
             family,
             model,
@@ -68,13 +90,19 @@ impl VendorInfo {
 
 impl fmt::Display for VendorInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[cfg(feature = "alloc")]
         writeln!(
             f,
             "Vendor: {} ({})",
             self.vendor_string,
             self.vendor.as_str()
         )?;
+        #[cfg(not(feature = "alloc"))]
+        writeln!(f, "Vendor: {}", self.vendor.as_str())?;
+
+        #[cfg(feature = "alloc")]
         writeln!(f, "Brand: {}", self.brand_string)?;
+        
         write!(
             f,
             "Family: 0x{:X}, Model: 0x{:X}, Stepping: {}",
@@ -83,6 +111,7 @@ impl fmt::Display for VendorInfo {
     }
 }
 
+#[cfg(feature = "alloc")]
 fn read_vendor_string(result: &CpuidResult) -> String {
     let mut bytes = Vec::with_capacity(12);
     bytes.extend_from_slice(&result.ebx.to_le_bytes());
@@ -91,6 +120,7 @@ fn read_vendor_string(result: &CpuidResult) -> String {
     String::from_utf8_lossy(&bytes).to_string()
 }
 
+#[cfg(feature = "alloc")]
 fn read_brand_string() -> String {
     let mut brand = Vec::with_capacity(48);
 
