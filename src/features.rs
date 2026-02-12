@@ -79,6 +79,7 @@ impl CpuFeatures {
             let result = cpuid(1, 0);
             detect_leaf1_edx(result.edx, &mut basic);
             detect_leaf1_ecx(result.ecx, &mut all_features);
+            add_leaf1_edx_features(result.edx, &mut all_features);
         }
 
         // Leaf 7: Structured extended features
@@ -88,7 +89,8 @@ impl CpuFeatures {
 
         // Leaf 7 subleaf 1
         if is_leaf_supported(7) {
-            detect_leaf7_sub1(&mut all_features);
+            let vendor_info_for_avx10 = crate::vendor::VendorInfo::detect();
+            detect_leaf7_sub1(&mut all_features, &vendor_info_for_avx10);
         }
 
         // Leaf 7 subleaf 2
@@ -430,6 +432,22 @@ fn detect_leaf1_ecx(ecx: u32, features: &mut Vec<Feature>) {
             category: *category,
             description: desc,
             supported: (ecx & (1 << bit)) != 0,
+        });
+    }
+}
+
+// Add a function to detect leaf 1 EDX features and add them to all_features
+fn add_leaf1_edx_features(edx: u32, features: &mut Vec<Feature>) {
+    let edx_feature_map = [
+        (8, "CX8", FeatureCategory::System, "CMPXCHG8B instruction"),
+    ];
+
+    for (bit, name, category, desc) in edx_feature_map.iter() {
+        features.push(Feature {
+            name: name.to_string(),
+            category: *category,
+            description: desc,
+            supported: (edx & (1 << bit)) != 0,
         });
     }
 }
@@ -907,7 +925,7 @@ fn detect_leaf7(features: &mut Vec<Feature>) {
     }
 }
 
-fn detect_leaf7_sub1(features: &mut Vec<Feature>) {
+fn detect_leaf7_sub1(features: &mut Vec<Feature>, vendor_info: &crate::vendor::VendorInfo) {
     let result = cpuid(7, 1);
 
     let eax_features = [
@@ -1074,12 +1092,6 @@ fn detect_leaf7_sub1(features: &mut Vec<Feature>) {
             "Shadow Stack Select",
         ),
         (
-            18,
-            "AVX10",
-            FeatureCategory::Simd,
-            "AVX10 Converged Vector ISA",
-        ),
-        (
             19,
             "APX_F",
             FeatureCategory::Performance,
@@ -1093,6 +1105,39 @@ fn detect_leaf7_sub1(features: &mut Vec<Feature>) {
             category: *category,
             description: desc,
             supported: (result.edx & (1 << bit)) != 0,
+        });
+    }
+
+    // Check for AVX10 specifically - only add if vendor is AMD or if leaf 0x24 indicates support
+    // Also verify that the CPU model is known to support AVX10 to avoid false positives
+    let avx10_bit_set = (result.edx & (1 << 18)) != 0;
+    let avx10_supported = if vendor_info.vendor == crate::vendor::CpuVendor::Intel {
+        // For Intel, check leaf 0x24 to confirm AVX10 support and verify CPU model
+        let avx10_result = cpuid(0x24, 0);
+        let avx10_version = avx10_result.ebx & 0xFF;
+        
+        // Additionally, get CPU info to verify if this model should support AVX10
+        let cpu_info = cpuid(1, 0);
+        // Calculate extended family and model
+        let base_family = (cpu_info.eax >> 8) & 0xF;
+        let ext_family = (cpu_info.eax >> 20) & 0xFF;
+        let family = if base_family == 0xF { base_family + ext_family } else { base_family };
+                
+        // AVX10 is not expected on older Intel families/models (e.g., 13th gen Core series which has family 6)
+        // Known AVX10 supporting Intel families would be newer ones
+        // For now, we'll be conservative and disable AVX10 for family 6 (which includes 13th gen Core)
+        avx10_version > 0 && family != 6  // Family 6 includes Core series, which shouldn't have AVX10 yet
+    } else {
+        // For AMD, rely on leaf 7 subleaf 1 bit
+        avx10_bit_set
+    };
+
+    if avx10_supported {
+        features.push(Feature {
+            name: "AVX10".to_string(),
+            category: FeatureCategory::Simd,
+            description: "AVX10 Converged Vector ISA",
+            supported: true,
         });
     }
 }

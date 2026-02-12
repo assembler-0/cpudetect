@@ -45,15 +45,13 @@ pub enum Register {
 }
 
 pub fn cpuid(leaf: u32, subleaf: u32) -> CpuidResult {
-    unsafe {
-        let result = __cpuid_count(leaf, subleaf);
-        CpuidResult {
-            eax: result.eax,
-            ebx: result.ebx,
-            ecx: result.ecx,
-            edx: result.edx,
-        }
-    }
+    let result = __cpuid_count(leaf, subleaf);
+	CpuidResult {
+	    eax: result.eax,
+	    ebx: result.ebx,
+	    ecx: result.ecx,
+	    edx: result.edx,
+	}
 }
 
 pub fn max_cpuid_leaf() -> u32 {
